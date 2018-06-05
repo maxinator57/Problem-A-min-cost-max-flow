@@ -1,2 +1,2 @@
 # Problem-A-min-cost-max-flow
-Min cosgt max flow - just as it is
+Min cost max flow - just as it is
