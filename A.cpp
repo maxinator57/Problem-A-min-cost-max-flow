@@ -13,115 +13,126 @@ using std::setprecision;
 using std::fixed;
 
 struct edge {
-    int a = -1, b = -1, num = -1;
-    edge() : a(-1), b(-1), num(-1) {}
-    edge(int a1, int b1, int num1) {
-        a = a1;
-        b = b1;
-        num = num1;
+    size_t a, b, num;
+    edge() : a(0), b(0), num(0) {}
+    edge(size_t a1, size_t b1, size_t num1) : a(a1), b(b1), num(num1) {}
+};
+
+struct network {
+    size_t n, m;
+    long long k;
+    long long total_flow = 0, total_cost = 0;
+    const long long inf = 1e18;
+    vector<vector<edge>> edges;
+    vector<edge> prev;
+    vector<long long> f, cost, cap, p, d;
+    bool success = true;
+
+    network(size_t n1, size_t m1, size_t k1) : n(n1), m(m1), k(k1) {
+        edges.resize(200);
+        prev.resize(200);
+        f.resize(9000);
+        cost.resize(9000);
+        cap.resize(9000);
+        p.resize(9000);
+        d.resize(9000);
     }
 };
 
-int n, m, k;
-long long total_flow = 0, total_cost = 0;
-const int maxn = 200, maxm = 9000;
-const long long inf = 1e18;
-vector<edge> edges[maxn];
-edge prev[maxn];
-long long f[maxm], cost[maxm], cap[maxm], p[maxn], d[maxn];
-bool success = true;
-
-void initial_Dijikstra() {
-    set<pair<long long, int>> s;
+void initial_dijikstra(network& N) {
+    set<pair<long long, size_t>> s;
     s.insert({0, 0});
-    for (int i = 1; i < n; ++i) {
-        p[i] = inf;
-        s.insert({inf, i});
+    for (size_t i = 1; i < N.n; ++i) {
+        N.p[i] = N.inf;
+        s.insert({N.inf, i});
     }
     while (!s.empty()) {
-        int cur = s.begin()->second;
+        size_t cur = s.begin()->second;
         s.erase(s.begin());
-        for (edge& e : edges[cur]) {
-            if (cap[e.num] > f[e.num] && p[e.b] > p[cur] + cost[e.num]) {
-                s.erase({p[e.b], e.b});
-                p[e.b] = p[cur] + cost[e.num];
-                s.insert({p[e.b], e.b});
+        for (edge& e : N.edges[cur]) {
+            if (N.cap[e.num] > N.f[e.num] && N.p[e.b] > N.p[cur] + N.cost[e.num]) {
+                s.erase({N.p[e.b], e.b});
+                N.p[e.b] = N.p[cur] + N.cost[e.num];
+                s.insert({N.p[e.b], e.b});
             }
         }
     }
 }
 
-void Dijikstra_with_Johnson_potentials() {
-    set<pair<long long, int>> s;
-    d[0] = 0;
+void dijikstra_with_johnson_potentials(network& N) {
+    set<pair<long long, size_t>> s;
+    N.d[0] = 0;
     s.insert({0, 0});
-    for (int i = 1; i < n; ++i) {
-        d[i] = inf;
-        s.insert({inf, i});
+    for (size_t i = 1; i < N.n; ++i) {
+        N.d[i] = N.inf;
+        s.insert({N.inf, i});
     }
     while (!s.empty()) {
-        int cur = s.begin()->second;
+        size_t cur = s.begin()->second;
         s.erase(s.begin());
-        for (edge& e : edges[cur]) {
-            if (cap[e.num] > f[e.num] && d[e.b] > d[cur] + cost[e.num] + p[e.a] - p[e.b]) {
-                s.erase({d[e.b], e.b});
-                d[e.b] = d[cur] + cost[e.num] + p[e.a] - p[e.b];
-                s.insert({d[e.b], e.b});
-                prev[e.b] = e;
+        for (edge& e : N.edges[cur]) {
+            if (N.cap[e.num] > N.f[e.num] && N.d[e.b] > N.d[cur] + N.cost[e.num] + N.p[e.a] - N.p[e.b]) {
+                s.erase({N.d[e.b], e.b});
+                N.d[e.b] = N.d[cur] + N.cost[e.num] + N.p[e.a] - N.p[e.b];
+                s.insert({N.d[e.b], e.b});
+                N.prev[e.b] = e;
             }
         }
     }
-    for (int i = 0; i < n; ++i) {
-        if (p[i] < inf)
-            p[i] += d[i];
+    for (size_t i = 0; i < N.n; ++i) {
+        if (N.p[i] < N.inf)
+            N.p[i] += N.d[i];
     }
 }
 
-void add_cheapest_path() {
+void add_cheapest_path(network& N) {
     vector<edge> path;
-    long long min_add = inf, v = n - 1;
+    long long min_add = N.inf, v = N.n - 1;
     while (v != 0) {
-        edge e = prev[v];
+        edge e = N.prev[v];
         path.push_back(e);
-        min_add = min(min_add, cap[e.num] - f[e.num]);
+        min_add = min(min_add, N.cap[e.num] - N.f[e.num]);
         v = e.a;
     }
-    min_add = min(min_add, k - total_flow);
-    total_flow += min_add;
+    min_add = min(min_add, N.k - N.total_flow);
+    N.total_flow += min_add;
     for (edge e : path) {
-        f[e.num] += min_add;
-        total_cost += min_add * cost[e.num];
+        N.f[e.num] += min_add;
+        N.total_cost += min_add * N.cost[e.num];
         if (e.num < 4000) {
-            f[e.num + 4000] -= min_add;
-            total_cost -= min_add * cost[e.num + 4000];
+            N.f[e.num + 4000] -= min_add;
+            N.total_cost -= min_add * N.cost[e.num + 4000];
         } else {
-            f[e.num - 4000] -= min_add;
-            total_cost -= min_add * cost[e.num - 4000];
+            N.f[e.num - 4000] -= min_add;
+            N.total_cost -= min_add * N.cost[e.num - 4000];
         }
     }
 }
 
-void read() {
+network read() {
+    size_t n, m, k;
     cin >> n >> m >> k;
-    for (int i = 0; i < m; ++i) {
-        int a, b, t = 2 * i;
-        cin >> a >> b >> cost[t];
-        cost[t + 4000] = -cost[t];
-        cost[t + 1] = cost[t];
-        cost[t + 4001] = -cost[t];
-        cap[t] = 1;
-        edges[a - 1].push_back(edge(a - 1, b - 1, t));
-        cap[t + 4000] = 0;
-        edges[b - 1].push_back(edge(b - 1, a - 1, t + 4000));
-        cap[t + 1] = 1;
-        edges[b - 1].push_back(edge(b - 1, a - 1, t + 1));
-        cap[t + 4001] = 0;
-        edges[a - 1].push_back(edge(a - 1, b - 1, t + 4001));
+    network N(n, m, k);
+    for (size_t i = 0; i < m; ++i) {
+        size_t a, b, t = 2 * i;
+        cin >> a >> b >> N.cost[t];
+        N.cost[t + 4000] = -N.cost[t];
+        N.cost[t + 1] = N.cost[t];
+        N.cost[t + 4001] = -N.cost[t];
+        N.cap[t] = 1;
+        N.edges[a - 1].push_back(edge(a - 1, b - 1, t));
+        N.cap[t + 4000] = 0;
+        N.edges[b - 1].push_back(edge(b - 1, a - 1, t + 4000));
+        N.cap[t + 1] = 1;
+        N.edges[b - 1].push_back(edge(b - 1, a - 1, t + 1));
+        N.cap[t + 4001] = 0;
+        N.edges[a - 1].push_back(edge(a - 1, b - 1, t + 4001));
     }
+    return N;
 }
 
-bool get_path_dfs(int v, vector<int>& path, vector<bool>& used) {
-    if (v == n - 1) {
+bool get_path_dfs(int v, vector<size_t>& path, vector<bool>& used, network& N) {
+    if (v == N.n - 1) {
         cout << path.size() << " ";
         for (int num : path)
             cout << num + 1 << " ";
@@ -129,11 +140,11 @@ bool get_path_dfs(int v, vector<int>& path, vector<bool>& used) {
         path.clear();
         return true;
     } else {
-        for (edge e : edges[v]) {
-            if (!used[e.num] && f[e.num] == 1) {
+        for (edge e : N.edges[v]) {
+            if (!used[e.num] && N.f[e.num] == 1) {
                 used[e.num] = true;
                 path.push_back(e.num / 2);
-                if (get_path_dfs(e.b, path, used))
+                if (get_path_dfs(e.b, path, used, N))
                     return true;
             }
         }
@@ -141,36 +152,40 @@ bool get_path_dfs(int v, vector<int>& path, vector<bool>& used) {
     }
 }
 
-void solve() {
-    read();
-    initial_Dijikstra();
-    while (true) {
-        if (total_flow == k)
-            break;
-        else {
-            Dijikstra_with_Johnson_potentials();
-            if (d[n - 1] == inf) {
-                success = false;
-                break;
-            }
-            add_cheapest_path();
-        }
-    }
-    if (success) {
-        total_cost /= 2;
-        cout << fixed << setprecision(20) << (long double) total_cost / (long double) k << "\n";
-        vector<int> path;
-        vector<bool> used(maxm);
-        for (edge e : edges[0]) {
-            if (!used[e.num] && f[e.num] == 1) {
+void write_ans(network& N) {
+    if (N.success) {
+        N.total_cost /= 2;
+        cout << fixed << setprecision(20) << (long double) N.total_cost / (long double) N.k << "\n";
+        vector<size_t> path;
+        vector<bool> used(9000);
+        for (edge e : N.edges[0]) {
+            if (!used[e.num] && N.f[e.num] == 1) {
                 used[e.num] = true;
                 path.push_back(e.num / 2);
-                get_path_dfs(e.b, path, used);
+                get_path_dfs(e.b, path, used, N);
             }
         }
     } else {
         cout << -1 << "\n";
     }
+}
+
+void solve() {
+    network N = read();
+    initial_dijikstra(N);
+    while (true) {
+        if (N.total_flow == N.k)
+            break;
+        else {
+            dijikstra_with_johnson_potentials(N);
+            if (N.d[N.n - 1] == N.inf) {
+                N.success = false;
+                break;
+            }
+            add_cheapest_path(N);
+        }
+    }
+    write_ans(N);
 }
 
 int main() {
